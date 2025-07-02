@@ -4,10 +4,25 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+# Add permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -60,6 +75,56 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test
     
+    - name: Setup Pages
+      if: always()
+      uses: actions/configure-pages@v4
+    
+    - name: Prepare report for Pages
+      if: always()
+      run: |
+        # Create a unique directory for this run
+        mkdir -p public/reports/run-${{ github.run_id }}
+        
+        # Copy the report to the public directory
+        if [ -d "playwright-report" ]; then
+          cp -r playwright-report/* public/reports/run-${{ github.run_id }}/
+        else
+          # Create a basic index.html if no report exists
+          echo "<h1>No test report generated</h1>" > public/reports/run-${{ github.run_id }}/index.html
+        fi
+        
+        # Create or update the main index.html with links to all reports
+        cat > public/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Playwright Test Reports</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .report-link { display: block; padding: 10px; margin: 5px 0; background: #f5f5f5; text-decoration: none; border-radius: 5px; }
+            .report-link:hover { background: #e0e0e0; }
+          </style>
+        </head>
+        <body>
+          <h1>🎭 Playwright Test Reports</h1>
+          <a href="reports/run-${{ github.run_id }}/" class="report-link">
+            📊 Run #${{ github.run_id }} - ${{ github.ref_name }} - $(date)
+          </a>
+        </body>
+        </html>
+        EOF
+    
+    - name: Upload Pages artifact
+      if: always()
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./public
+    
+    - name: Deploy to GitHub Pages
+      if: always()
+      id: deployment
+      uses: actions/deploy-pages@v4
+    
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
@@ -90,13 +155,13 @@ jobs:
                     "short": true
                   },
                   {
-                    "title": "Duration",
-                    "value": "${{ job.duration }}",
+                    "title": "📊 Test Report",
+                    "value": "<${{ steps.deployment.outputs.page_url }}reports/run-${{ github.run_id }}/|View HTML Report>",
                     "short": true
                   },
                   {
-                    "title": "View Report",
-                    "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>",
+                    "title": "🔗 Actions Log",
+                    "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Full Log>",
                     "short": true
                   }
                 ]
@@ -129,13 +194,13 @@ jobs:
                     "short": true
                   },
                   {
-                    "title": "Commit",
-                    "value": "${{ github.sha }}",
+                    "title": "📊 Test Report",
+                    "value": "<${{ steps.deployment.outputs.page_url }}reports/run-${{ github.run_id }}/|View Failure Report>",
                     "short": true
                   },
                   {
-                    "title": "View Logs",
-                    "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here to debug>",
+                    "title": "🔗 Debug Logs",
+                    "value": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click to Debug>",
                     "short": true
                   }
                 ]
