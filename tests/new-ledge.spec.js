@@ -25,19 +25,26 @@ test('Registaration to the New-Ledge', async ({ page, context }) => {
 
   await anotherPage.goto(`https://www.mailinator.com/v4/public/inboxes.jsp?to=${randomEmail}`);
   await anotherPage.getByRole('cell', { name: 'Your verification code' }).click();
-  const verificationCode = await anotherPage.frameLocator("#html_msg_body").locator("body").innerText();
-  const verificationCodeArrayOfText = verificationCode.trim().split(" ");
-  const codeOnly = verificationCodeArrayOfText[verificationCodeArrayOfText.length - 1];
-  console.log(codeOnly);
+  await expect(anotherPage.frameLocator("#html_msg_body").locator("body")).toContainText("Your confirmation code is");
+  let codeOnly = "";
+
+  await expect(async () => {
+    const verificationCode = await anotherPage.frameLocator("#html_msg_body").locator("body").innerText();
+    const verificationCodeArrayOfText = verificationCode.trim().split(" ");
+    codeOnly = verificationCodeArrayOfText[verificationCodeArrayOfText.length - 1];
+    expect(codeOnly).not.toHaveLength(0);
+  }).toPass({
+    timeout: 60_000
+  });
   await anotherPage.close();
 
   await page.getByRole('textbox', { name: 'Verification Code' }).click();
   await page.getByRole('textbox', { name: 'Verification Code' }).fill(codeOnly);
   await page.getByRole('button', { name: 'Confirm' }).click();
-  await expect(page.getByRole('main')).toContainText(`Welcome back, ${randomName},`);
+  await expect(page.getByRole('main')).toContainText(`Welcome back, ${randomName},`, { timeout: 15000 });
   await expect(page.locator('header').filter({ hasText: 'My SpaceLeaderboardLogout' }).locator('img')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
-  
+
 });
 
 
